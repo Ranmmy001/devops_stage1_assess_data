@@ -22,6 +22,8 @@ create_user_account() {
     echo "✅ User '$username' created successfully."
 }
 
+
+
 # --- Function 2: Delete user (with backup) ---
 delete_user_account() {
     local username="$1"
@@ -52,6 +54,8 @@ delete_user_account() {
     echo "✅ User '$username' deleted."
 }
 
+
+
 # --- Function 3: Restore user home backup ---
 restore_user_account() {
     local username="$1"
@@ -69,6 +73,8 @@ restore_user_account() {
     sudo chown -R "$username":"$username" /home/$username
     echo "♻️  Restored /home/$username"
 }
+
+
 
 # --- Function 4: Update password ---
 update_user_password() {
@@ -89,6 +95,8 @@ update_user_password() {
 
     echo "$username:$p1" | sudo chpasswd && echo "✅ Password updated for $username."
 }
+
+
 
 # --- Function 5: Add user to groups ---
 add_user_to_group() {
@@ -112,6 +120,65 @@ add_user_to_group() {
     done
 }
 
+
+
+# ==================================================
+# Function 6: remove_user_from_group
+# ==================================================
+remove_user_from_group() {
+    local username="$1"
+    shift
+    local groups=("$@")
+
+    # --- Input validation ---
+    if [[ -z "$username" ]]; then
+        echo "❌ Usage: remove_user_from_group <username> <group1> [group2] ..."
+        return 1
+    fi
+
+    if ! id "$username" &>/dev/null; then
+        echo "⚠️  User '$username' does not exist."
+        return 2
+    fi
+
+    if [[ ${#groups[@]} -eq 0 ]]; then
+        echo "⚠️  No group names provided."
+        return 3
+    fi
+
+    local primary_group
+    primary_group=$(id -gn "$username")
+
+    # --- Loop through groups ---
+    for group in "${groups[@]}"; do
+        if [[ "$group" == "$primary_group" ]]; then
+            echo "⚠️  Cannot remove '$username' from their primary group '$group'."
+            continue
+        fi
+
+        # Check if group exists
+        if ! getent group "$group" >/dev/null; then
+            echo "⚠️  Group '$group' does not exist."
+            continue
+        fi
+
+        # Check if user belongs to the group
+        if id -nG "$username" | grep -qw "$group"; then
+            echo "Removing '$username' from '$group'..."
+            sudo gpasswd -d "$username" "$group" >/dev/null 2>&1
+            if [[ $? -eq 0 ]]; then
+                echo "✅ Successfully removed '$username' from '$group'"
+            else
+                echo "❌ Failed to remove '$username' from '$group'"
+            fi
+        else
+            echo "ℹ️  User '$username' is not a member of '$group'."
+        fi
+    done
+
+    echo "🎯 Group removal process completed for $username."
+}
+
 # =========================================
 # MENU SECTION
 # =========================================
@@ -123,8 +190,9 @@ echo "2. Delete user"
 echo "3. Restore user"
 echo "4. Update user password"
 echo "5. Add user to group"
+echo "6. Remove_user_from_group"
 echo "--------------------------------------"
-read -p "Enter choice [1-5]: " choice
+read -p "Enter choice [1-6]: " choice
 
 case "$choice" in
   1)
@@ -148,6 +216,11 @@ case "$choice" in
     read -p "Enter groups (space-separated): " -a g
     add_user_to_group "$u" "${g[@]}"
     ;;
+  6)
+    read -p "Enter username: " user
+        read -p "Enter groups to remove (separated by spaces): " -a group_list
+        remove_user_from_group "$user" "${group_list[@]}"
+        ;;
   *)
     echo "Invalid choice."
     ;;
