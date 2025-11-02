@@ -1,4 +1,40 @@
 #!/bin/bash
+
+
+
+LOGFILE="/var/log/manage_users.log"
+BACKUP_DIR="/var/backups/users"
+
+# Initialize logging and backup directory
+init_logging_system() {
+    # Ensure log directory exists
+    if [[ ! -f "$LOGFILE" ]]; then
+        sudo touch "$LOGFILE"
+        sudo chown root:root "$LOGFILE"
+        sudo chmod 640 "$LOGFILE"
+    fi
+
+    # Ensure backup directory exists
+    sudo mkdir -p "$BACKUP_DIR"
+}
+
+# Log function for consistent formatting
+log_action() {
+    local action="$1"
+    local username="$2"
+    local status="$3"
+    local message="$4"
+
+    printf "%s | %-10s | %-10s | %-8s | %s\n" \
+        "$(date '+%Y-%m-%d %H:%M:%S')" "$action" "$username" "$status" "$message" \
+        | sudo tee -a "$LOGFILE" >/dev/null
+}
+
+
+
+
+
+
 # =========================================
 # Manage Users — Create, Delete, Restore, Update, and Group assignment
 # =========================================
@@ -8,18 +44,61 @@ create_user_account() {
     read -p "Enter username to create: " username
     if id "$username" &>/dev/null; then
         echo "⚠️  User '$username' already exists."
+        log_action "CREATE" "$username" "FAILED" "User already exists"
         return 1
     fi
 
-    sudo useradd -m "$username" || {
+
+     sudo useradd -m "$username" 
+     if [ $? -ne 0 ]; then
         echo "❌ Failed to create user '$username'"
+        log_action "CREATE" "$username" "FAILED" "Error creating user"
         return 1
-    }
+    
+    fi
 
     read -s -p "Enter password for $username: " password
     echo
     echo "$username:$password" | sudo chpasswd
-    echo "✅ User '$username' created successfully."
+
+   if [ $? -eq 0 ]; then 
+      echo "✅ User '$username' created successfully."
+      log_action "CREATE" "$username" "SUCCESS" "User created"
+    else
+        echo "❌ Failed to set password for '$username'"
+        log_action "CREATE" "$username" "FAILED" "Password not set"
+    fi
+
+}
+
+
+
+create_user_account() {
+    read -p "Enter username to create: " username
+    if id "$username" &>/dev/null; then
+        echo "⚠️  User '$username' already exists."
+        log_action "CREATE" "$username" "FAILED" "User already exists"
+        return 1
+    fi
+
+    sudo useradd -m "$username"
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to create user '$username'"
+        log_action "CREATE" "$username" "FAILED" "Error creating user"
+        return 1
+    fi
+
+    read -s -p "Enter password for $username: " password
+    echo
+    echo "$username:$password" | sudo chpasswd
+
+    if [ $? -eq 0 ]; then
+        echo "✅ User '$username' created successfully."
+        log_action "CREATE" "$username" "SUCCESS" "User created"
+    else
+        echo "❌ Failed to set password for '$username'"
+        log_action "CREATE" "$username" "FAILED" "Password not set"
+    fi
 }
 
 
@@ -179,6 +258,8 @@ remove_user_from_group() {
     echo "🎯 Group removal process completed for $username."
 }
 
+
+
 # =========================================
 # MENU SECTION
 # =========================================
@@ -192,6 +273,8 @@ echo "4. Update user password"
 echo "5. Add user to group"
 echo "6. Remove_user_from_group"
 echo "--------------------------------------"
+
+
 read -p "Enter choice [1-6]: " choice
 
 case "$choice" in
