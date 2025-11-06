@@ -1,7 +1,6 @@
 #!/bin/bash
 
 
-
 LOGFILE="/var/log/manage_users.log"
 BACKUP_DIR="/var/backups/users"
 
